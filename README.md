@@ -4,7 +4,7 @@ Continuously Fetching the most recent movies using the guardian  APIs.
 ## Screenshots
 
 ### Loading State During Fetching Data From The Site.
-
+![](Screenshots/loading_state.jpg)
 
 
 ### Incase of No Network Connection.
@@ -13,3 +13,7 @@ Continuously Fetching the most recent movies using the guardian  APIs.
 
 ### Incase of Network Connection.
 ![](Screenshots/network_state.jpg)
+
+
+### Saving Data Once The Network is On.
+![](Screenshots/on_then_off_network.jpg)
