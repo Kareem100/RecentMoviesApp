@@ -8,34 +8,44 @@ import androidx.loader.app.LoaderManager;
 import androidx.loader.content.Loader;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Typeface;
+import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.Gravity;
-import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
+
 import java.util.ArrayList;
+
 import Loaders.MovieLoader;
 import MoviesData.Movie;
 import MoviesData.MoviesAdapter;
+import Receivers.NetworkStateReceiver;
 
 public class MainActivity extends AppCompatActivity implements MoviesAdapter.MovieClickListener,
-        LoaderManager.LoaderCallbacks<ArrayList<Movie>> {
+        LoaderManager.LoaderCallbacks<ArrayList<Movie>>, NetworkStateReceiver.NetworkStateReceiverListener {
 
     private static final String JSON_QUERY_LINK = "https://content.guardianapis.com/search";
 
     private final int MOVIES_LOADER_ID = 0;
+    private NetworkStateReceiver networkStateReceiver;
     private RecyclerView moviesRecyclerView;
     private MoviesAdapter moviesAdapter;
-    private TextView tipText;
+    private TextView tipTextView;
+    private TextView extraTipTextView;
+    private ImageView tipImageView;
+    private LinearLayout tipContainerLinearLayout;
     private ProgressBar circularProgress;
+    private boolean savedData;
+    private boolean savedDataOnce;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,41 +54,23 @@ public class MainActivity extends AppCompatActivity implements MoviesAdapter.Mov
 
         centerTitle();
         setHooks();
-        if (!isNetworkConnected()) {
-            tipText.setText(R.string.no_network_state_text);
-            circularProgress.setVisibility(View.GONE);
-            moviesRecyclerView.setVisibility(View.GONE);
-            tipText.setVisibility(View.VISIBLE);
-        }
-        getSupportLoaderManager().initLoader(MOVIES_LOADER_ID, null, this);
-    }
+        savedData = savedDataOnce = false;
 
-    @Override
-    public void onMovieClick(int position) {
-        // open the review made by the author
-        try {
-            String reviewLink = moviesAdapter.getReviewLink(position);
-            Uri reviewUri = Uri.parse(reviewLink);
-            Intent reviewWebsiteIntent = new Intent(Intent.ACTION_VIEW, reviewUri);
-            startActivity(reviewWebsiteIntent);
-        } catch (Exception e) {
-            Log.e(MainActivity.class.getName(), "MainActivity.onMovieClick: " +
-                    "Problem Opening The Website.", e);
-        }
+        networkStateReceiver = new NetworkStateReceiver();
+        networkStateReceiver.addListener(this);
+        this.registerReceiver(networkStateReceiver, new IntentFilter(android.net.ConnectivityManager.CONNECTIVITY_ACTION));
     }
 
     private void setHooks() {
         circularProgress = findViewById(R.id.progress_circular);
-        tipText = findViewById(R.id.tip_text_view);
+        tipContainerLinearLayout = findViewById(R.id.tip_container_linear_layout);
+        tipTextView = findViewById(R.id.tip_text_view);
+        extraTipTextView = findViewById(R.id.extra_tip_text_view);
+        tipImageView = findViewById(R.id.tip_image_view);
         moviesRecyclerView = findViewById(R.id.movies_recycler_view);
         moviesAdapter = new MoviesAdapter(this, new ArrayList<>(), this);
         moviesRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         moviesRecyclerView.setAdapter(moviesAdapter);
-    }
-
-    private boolean isNetworkConnected() {
-        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        return cm.getActiveNetworkInfo() != null && cm.getActiveNetworkInfo().isConnected();
     }
 
     private void centerTitle() {
@@ -92,7 +84,7 @@ public class MainActivity extends AppCompatActivity implements MoviesAdapter.Mov
         getSupportActionBar().setCustomView(titleTextView);
     }
 
-    private String buildUri () {
+    private String buildUri() {
         Uri baseUri = Uri.parse(JSON_QUERY_LINK);
         Uri.Builder uriBuilder = baseUri.buildUpon();
 
@@ -113,6 +105,20 @@ public class MainActivity extends AppCompatActivity implements MoviesAdapter.Mov
         return uriBuilder.toString();
     }
 
+    @Override
+    public void onMovieClick(int position) {
+        // open the review made by the author
+        try {
+            String reviewLink = moviesAdapter.getReviewLink(position);
+            Uri reviewUri = Uri.parse(reviewLink);
+            Intent reviewWebsiteIntent = new Intent(Intent.ACTION_VIEW, reviewUri);
+            startActivity(reviewWebsiteIntent);
+        } catch (Exception e) {
+            Log.e(MainActivity.class.getName(), "MainActivity.onMovieClick: " +
+                    "Problem Opening The Website.", e);
+        }
+    }
+
     @NonNull
     @Override
     public Loader<ArrayList<Movie>> onCreateLoader(int id, @Nullable Bundle args) {
@@ -129,13 +135,14 @@ public class MainActivity extends AppCompatActivity implements MoviesAdapter.Mov
             moviesAdapter.setData(data);
             moviesAdapter.notifyDataSetChanged();
             circularProgress.setVisibility(View.GONE);
-            tipText.setVisibility(View.GONE);
+            tipContainerLinearLayout.setVisibility(View.GONE);
             moviesRecyclerView.setVisibility(View.VISIBLE);
-        }
-        else {
-            tipText.setText(R.string.empty_data_state_text);
+        } else {
+            tipTextView.setText(R.string.empty_data_state_text);
+            extraTipTextView.setText(R.string.extra_empty_data_state_text);
+            tipImageView.setImageResource(R.drawable.ic_try_later);
             circularProgress.setVisibility(View.GONE);
-            tipText.setVisibility(View.VISIBLE);
+            tipContainerLinearLayout.setVisibility(View.VISIBLE);
             moviesRecyclerView.setVisibility(View.GONE);
         }
     }
@@ -143,5 +150,35 @@ public class MainActivity extends AppCompatActivity implements MoviesAdapter.Mov
     @Override
     public void onLoaderReset(@NonNull Loader<ArrayList<Movie>> loader) {
         moviesAdapter.clearData();
+    }
+
+    @Override
+    public void onAvailableNetwork() {
+        if (!savedDataOnce) {
+            tipContainerLinearLayout.setVisibility(View.GONE);
+            circularProgress.setVisibility(View.VISIBLE);
+            savedData = true;
+            savedDataOnce = true;
+            getSupportLoaderManager().initLoader(MOVIES_LOADER_ID, null, this);
+        }
+    }
+
+    @Override
+    public void onUnavailableNetwork() {
+        if (!savedData) {
+            tipTextView.setText(R.string.no_network_state_text);
+            extraTipTextView.setText(R.string.extra_no_network_state_text);
+            tipImageView.setImageResource(R.drawable.ic_wifi_off);
+            circularProgress.setVisibility(View.GONE);
+            moviesRecyclerView.setVisibility(View.GONE);
+            tipContainerLinearLayout.setVisibility(View.VISIBLE);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        networkStateReceiver.removeListener(this);
+        this.unregisterReceiver(networkStateReceiver);
     }
 }
