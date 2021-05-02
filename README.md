@@ -2,8 +2,8 @@
 
 ### App Description
 
-<b> RecentMovies-app </b> is an android native java application. </br> 
-The app is a tracker for the currently most recent movies.
+<b> RecentMovies-app </b> is an android native java application. </br>
+The app is a tracker for the currently most recent movies. </br>
 Continuously Fetching the most recent movies using the guardian  APIs.
 
 ***
